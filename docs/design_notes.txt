@@ -1,0 +1,20 @@
+RAG部份:
+資料集: Graham Essays Collection
+資料集網址: https://github.com/ofou/graham-essays
+資料集放置位置: data
+檢索引擎: LlamaIndex
+
+模型部份:
+gemini-1.5-flash (透過API KEY)
+
+輸入與對話顯示介面: 
+Cli方式 搭配rich與prompt_toolkit
+
+第一階段: 基礎RAG應答(stateless)
+先驗證基本輸入, RAG檢索, 模型輸出正常
+
+第二階段: 加入持久記憶(stateful memory)
+加入對話紀錄 制定一些基本的state與node
+
+第三階段: 主題偵測與上下文優化
+利用LangGraph進行主題偵測與使用者回饋.
