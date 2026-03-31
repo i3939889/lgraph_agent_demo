@@ -21,6 +21,7 @@
 ### 第二階段 (Memory): 導入持久化記憶 (Stateful)
 *   **目標**: 加入對話紀錄，讓機器人具備歷史上下文認知。
 *   **實作重點**: 導入 LangGraph 的 `StateGraph`，並搭配 `Checkpointers` 來達成對話歷史 (persistent chat history) 的儲存。制定出基本的 Node 與 State 結構 (如 `AgentState` TypedDict)。
+*   **模型介接擴充**: 為了提升相容性與本地開發彈性，預計新增支援 OpenAI-compatible API 的串接方式，以及 Gemini CLI 的使用介面，讓 RAG 不僅限於原生的 python `google-genai` SDK。
 
 ### 第三階段 (Logic): 主題偵測與上下文最佳化
 *   **目標**: 實作進階意圖識別與記憶體管理，確保對話不偏軌，並維持高效能。
