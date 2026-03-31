@@ -1,20 +1,38 @@
-RAG部份:
-資料集: Graham Essays Collection
-資料集網址: https://github.com/ofou/graham-essays
-資料集放置位置: data
-檢索引擎: LlamaIndex
+# LGraph Agent: 系統設計筆記
 
-模型部份:
-gemini-1.5-flash (透過API KEY)
+## 技術堆疊與核心選型
+*   **程式語言**: Python 3.10+ (嚴格要求 Type Hinting)
+*   **語言模型 (LLM)**: Google Gemini API (使用 `gemini-1.5-flash` 搭配 `google-generativeai` 套件)
+*   **流程編排 (Orchestration)**: LangGraph (用於建立 Stateful Agentic Workflows)
+*   **RAG 檢索引擎**: LlamaIndex / LangChain (處理資料擷取、嵌入與向量檢索)
+*   **資料來源**: Local `.md` 與 `.json` 檔案
+    *   **資料集**: Graham Essays Collection
+    *   **資料集網址**: https://github.com/ofou/graham-essays
+    *   **資料放置位置**: 本機 `data/` 目錄
+*   **前端介面**: 命令列介面 (CLI)，結合 `rich` 進行終端機美化，以及 `prompt_toolkit` 提供互動輸入
+*   **部署環境**: Docker-ready (以 Linux 為基礎的容器化部署)
 
-輸入與對話顯示介面: 
-Cli方式 搭配rich與prompt_toolkit
+## 開發藍圖與三階段實作
 
-第一階段: 基礎RAG應答(stateless)
-先驗證基本輸入, RAG檢索, 模型輸出正常
+### 第一階段 (MVP): 基礎 RAG 應答 (Stateless)
+*   **目標**: 驗證基本輸入、RAG 向量檢索與模型輸出是否正常。
+*   **實作重點**: 高品質的 Markdown 文件載入 (使用 `MarkdownHeaderTextSplitter` 保持結構脈絡) 以及基礎的 Vector Search。此階段不具備狀態與對話記憶。
 
-第二階段: 加入持久記憶(stateful memory)
-加入對話紀錄 制定一些基本的state與node
+### 第二階段 (Memory): 導入持久化記憶 (Stateful)
+*   **目標**: 加入對話紀錄，讓機器人具備歷史上下文認知。
+*   **實作重點**: 導入 LangGraph 的 `StateGraph`，並搭配 `Checkpointers` 來達成對話歷史 (persistent chat history) 的儲存。制定出基本的 Node 與 State 結構 (如 `AgentState` TypedDict)。
 
-第三階段: 主題偵測與上下文優化
-利用LangGraph進行主題偵測與使用者回饋.
+### 第三階段 (Logic): 主題偵測與上下文最佳化
+*   **目標**: 實作進階意圖識別與記憶體管理，確保對話不偏軌，並維持高效能。
+*   **實作重點**:
+    *   **主題切換 (Topic Switching)**: 建立 `IntentAnalyzer` 節點。當新對話進入時，比對前 3 輪對話，偵測語境是否發生偏移，藉此決定是否要重新觸發文件檢索。
+    *   **記憶體修剪 (Memory Pruning)**: 當 `len(messages) > 10` 時，觸發歷史紀錄摘要邏輯，確保提示詞長度維持在 Gemini 最佳的 Context Window 內。
+    *   **狀態追蹤**: 於 `AgentState` 內追蹤 `current_topic` 與 `is_topic_changed` 旗標。
+
+## 開發與程式碼規範
+*   **架構設計**: 模組化設計。LangGraph 上的每一個 Node 都必須是獨立且可測試的函式 (Standalone, testable function)。
+*   **錯誤與驗證**: 使用 Pydantic 處理資料驗證，妥善處理 API Rate Limits 及空的檢索結果。
+*   **日誌記錄 (Logging)**: 使用標準 `logging` 模組，全面記錄 RAG 的檢索命中情況 (Retrieval hits) 與 LLM 的 Token 用量。
+*   **文件與註解**: 複雜函式必須具備清晰的 Docstring 說明狀態轉換；遵循「Why, not What」的原則；使用繁體中文。
+*   **RAG 限制**: 嚴格的 System Prompt 要求模型「僅能基於檢索內容回答」，不知則答不知。
+*   **JSON 處理**: 優先使用 Metadata filtering 代替純文字 Embedding。

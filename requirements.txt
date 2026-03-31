@@ -1,0 +1,10 @@
+google-generativeai
+llama-index
+llama-index-llms-gemini
+llama-index-embeddings-gemini
+langgraph
+langchain
+pydantic
+rich
+prompt_toolkit
+python-dotenv
