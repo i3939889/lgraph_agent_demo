@@ -1,9 +1,8 @@
 import os
 from dotenv import load_dotenv
 from llama_index.core import Settings
-from llama_index.llms.gemini import Gemini
 from llama_index.llms.nvidia import NVIDIA
-from llama_index.embeddings.gemini import GeminiEmbedding
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.core.node_parser import MarkdownNodeParser
 
 def setup_llamaindex():
@@ -22,7 +21,7 @@ def setup_llamaindex():
 
     # 設定 NVIDIA LLM
     Settings.llm = NVIDIA(model=nvidia_model, api_key=nvidia_api_key)
-    # 設定 Gemini Embedding 模型
-    Settings.embed_model = GeminiEmbedding(model_name="models/gemini-embedding-001", api_key=gemini_api_key)
+    # 設定 GoogleGenAI Embedding 模型
+    Settings.embed_model = GoogleGenAIEmbedding(model_name="models/text-embedding-004", api_key=gemini_api_key)
     # 設定全局的 Node Parser 為 Markdown 解析器，以保留結構脈絡
     Settings.node_parser = MarkdownNodeParser()
