@@ -2,6 +2,7 @@ google-generativeai
 llama-index
 llama-index-llms-gemini
 llama-index-embeddings-gemini
+llama-index-llms-nvidia
 langgraph
 langchain
 pydantic
