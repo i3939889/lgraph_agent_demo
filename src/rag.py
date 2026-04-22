@@ -3,7 +3,9 @@ import logging
 from typing import Optional
 from llama_index.core import StorageContext, load_index_from_storage
 from llama_index.core import PromptTemplate
+import time
 from src.config import setup_llamaindex
+from src.utils.logger import log_interaction
 
 logger = logging.getLogger(__name__)
 
@@ -47,31 +49,78 @@ def get_query_engine():
     
     return query_engine
 
-def query(question: str) -> str:
-    """執行檢索並回答使用者問題，具備嚴格例外處理與回報"""
+def query(question: str, session_id: str = "session_default") -> str:
+    """執行檢索並回答使用者問題，具備嚴格例外處理與回報，並支援紀錄日誌"""
+    start_time = time.time()
+    
+    log_data = {
+        "query": question,
+        "session_id": session_id,
+        "endpoint_model": "unknown",
+        "status": "pending"
+    }
+
     try:
         engine = get_query_engine()
+        # get_query_engine 會呼叫 setup_llamaindex，進而載入 .env
+        log_data["endpoint_model"] = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
+        
         logger.info(f"開始搜尋問題: {question}")
         response = engine.query(question)
+        
+        elapsed = time.time() - start_time
+        log_data["latency_seconds"] = round(elapsed, 4)
         
         # 檢查檢索結果是否為空 (LlamaIndex如果找不到任何相似節點時 source_nodes 會是空的)
         if not response.source_nodes:
             raise ValueError("Empty retrieval results")
             
-        return str(response)
+        answer_str = str(response)
+        log_data["answer"] = answer_str
+        log_data["status"] = "success"
+        
+        source_contexts = []
+        for node in response.source_nodes:
+            source_contexts.append({
+                "node_id": node.node.node_id,
+                "text": node.node.get_content()[:200] + "...", 
+                "score": node.score
+            })
+        log_data["source_contexts"] = source_contexts
+        
+        log_interaction(log_data)
+        return answer_str
         
     except ValueError as ve:
-        # 攔截自定的 ValueError 如空檢索
+        elapsed = time.time() - start_time
+        log_data["latency_seconds"] = round(elapsed, 4)
+        log_data["status"] = "error"
+        log_data["error_msg"] = str(ve)
+        log_data["answer"] = "I don't know based on the provided files. (系統回報：未檢索到相關內容)"
+        log_interaction(log_data)
+        
         logger.warning(f"檢索錯誤/無結果: {ve}")
-        return "I don't know based on the provided files. (系統回報：未檢索到相關內容)"
+        return log_data["answer"]
         
     except FileNotFoundError as fnfe:
-        # 未建立向量庫的例外
+        elapsed = time.time() - start_time
+        log_data["latency_seconds"] = round(elapsed, 4)
+        log_data["status"] = "error"
+        log_data["error_msg"] = str(fnfe)
+        log_data["answer"] = f"發生錯誤: {fnfe}"
+        log_interaction(log_data)
+        
         logger.error(f"檔案錯誤: {fnfe}")
-        return f"發生錯誤: {fnfe}"
+        return log_data["answer"]
         
     except Exception as e:
-        # 其他 API 等級例外攔截 (如 Rate Limit, Network Error 等)
+        elapsed = time.time() - start_time
+        log_data["latency_seconds"] = round(elapsed, 4)
+        log_data["status"] = "error"
         error_msg = str(e)
+        log_data["error_msg"] = error_msg
+        log_data["answer"] = f"系統發生錯誤，無法處理您的請求，請稍後再試。詳細錯誤: {error_msg}"
+        log_interaction(log_data)
+        
         logger.error(f"遭遇不可預期的錯誤: {error_msg}")
-        return f"系統發生錯誤，無法處理您的請求，請稍後再試。詳細錯誤: {error_msg}"
+        return log_data["answer"]
