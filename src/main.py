@@ -1,6 +1,8 @@
 import os
 import sys
+import logging
 
+logging.basicConfig(level=logging.INFO)
 # 將專案根目錄加入 sys.path，這樣 python src/main.py 也能正確找到 src 模組
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
