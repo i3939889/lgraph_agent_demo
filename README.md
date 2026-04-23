@@ -36,7 +36,11 @@ NVIDIA_MODEL="meta/llama-3.1-8b-instruct"
 ```
 
 ### 4. 資料準備
-專案中已預設提供 `data/` 目錄。若為首次使用，您會需要將所有的 Markdown `.md` 檔案放入此目錄下作為知識來源。
+專案中已提供 `data/` 目錄。您可以手動將 Markdown `.md` 檔案放入此目錄，或是執行我們提供的自動下載腳本來獲取 Paul Graham 的散文集：
+
+```bash
+python -m src.setup_data
+```
 
 ---
 
