@@ -63,7 +63,11 @@ def query(question: str, session_id: str = "session_default") -> str:
     try:
         engine = get_query_engine()
         # get_query_engine 會呼叫 setup_llamaindex，進而載入 .env
-        log_data["endpoint_model"] = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
+        llm_provider = os.getenv("LLM_PROVIDER", "nvidia").lower()
+        if llm_provider == "vllm":
+            log_data["endpoint_model"] = os.getenv("VLLM_MODEL", "gemma-4b")
+        else:
+            log_data["endpoint_model"] = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
         
         logger.info(f"開始搜尋問題: {question}")
         response = engine.query(question)

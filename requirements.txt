@@ -9,3 +9,4 @@ pydantic
 rich
 prompt_toolkit
 python-dotenv
+llama-index-llms-openai

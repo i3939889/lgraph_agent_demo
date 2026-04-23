@@ -35,3 +35,6 @@ docs/.env
 storage/
 data/
 logs/
+
+# Others
+.DS_Store
