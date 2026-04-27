@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 from llama_index.core import Settings
 from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.openai_like import OpenAILike
-from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-from llama_index.core.node_parser import MarkdownNodeParser
+from llama_index.embeddings.nvidia import NVIDIAEmbedding
+from llama_index.core.node_parser import TokenTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,10 @@ def setup_llamaindex():
     logger.info("Loaded .env file for LLM configuration.")
     
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_api_key:
-        raise ValueError("無法讀取 GEMINI_API_KEY，請確認根目錄 .env 檔案是否存在並正確設定。")
+    nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+    
+    if not gemini_api_key and not nvidia_api_key:
+        raise ValueError("無法讀取 API Key，請確認根目錄 .env 檔案是否存在並正確設定。")
 
     llm_provider = os.getenv("LLM_PROVIDER", "nvidia").lower()
 
@@ -48,7 +50,13 @@ def setup_llamaindex():
             raise ValueError("無法讀取 NVIDIA_API_KEY，請確認根目錄 .env 檔案是否存在並正確設定。")
         # 設定 NVIDIA LLM
         Settings.llm = NVIDIA(model=nvidia_model, api_key=nvidia_api_key)
-    # 設定 GoogleGenAI Embedding 模型
-    Settings.embed_model = GoogleGenAIEmbedding(model_name="models/gemini-embedding-001", api_key=gemini_api_key)
-    # 設定全局的 Node Parser 為 Markdown 解析器，以保留結構脈絡
-    Settings.node_parser = MarkdownNodeParser()
+    # 設定 Embedding 模型
+    embed_provider = os.getenv("EMBED_PROVIDER", "nvidia").lower()
+    if embed_provider == "google" and gemini_api_key:
+        Settings.embed_model = GoogleGenAIEmbedding(model_name="models/gemini-embedding-001", api_key=gemini_api_key)
+    else:
+        if not nvidia_api_key:
+            raise ValueError("欲使用 NVIDIA Embedding 但找不到 NVIDIA_API_KEY")
+        Settings.embed_model = NVIDIAEmbedding(model="nvidia/nv-embedqa-e5-v5", api_key=nvidia_api_key)
+    # 大幅調低 chunk_size 到 300，以確保加上 Metadata 且 Tokenizer 計算落差後，仍能塞進 NVIDIA 的 512 限制
+    Settings.node_parser = TokenTextSplitter(chunk_size=300, chunk_overlap=30)

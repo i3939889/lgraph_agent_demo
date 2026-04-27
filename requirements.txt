@@ -10,3 +10,6 @@ rich
 prompt_toolkit
 python-dotenv
 llama-index-llms-openai
+datasets
+llama-index-readers-file
+llama-index-embeddings-nvidia
