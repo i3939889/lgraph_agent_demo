@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import argparse
 
 logging.basicConfig(level=logging.INFO)
 # 將專案根目錄加入 sys.path，這樣 python src/main.py 也能正確找到 src 模組
@@ -10,6 +11,10 @@ from dotenv import load_dotenv
 from src.rag import query
 
 def main():
+    parser = argparse.ArgumentParser(description="LGraph Agent MVP")
+    parser.add_argument("--dataset", type=str, default=None, help="指定資料集名稱 (覆蓋 .env 中的 DATASET_NAME)")
+    args = parser.parse_args()
+    
     # 載入 docs/.env 中的環境變數
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     load_dotenv(dotenv_path=env_path)
@@ -23,9 +28,11 @@ def main():
     print("Type 'exit' or 'quit' to exit.")
     print("-" * 50)
     
+    active_dataset = args.dataset if args.dataset else os.getenv("DATASET_NAME", "default_dataset")
+    
     while True:
         try:
-            user_input = input("\nAsk something about Paul Graham -> ").strip()
+            user_input = input(f"\nAsk something about {active_dataset} -> ").strip()
             if not user_input:
                 continue
             if user_input.lower() in ['exit', 'quit']:
@@ -34,7 +41,7 @@ def main():
                 
             print("Thinking...\n")
             # 呼叫 MVP 的 query 函式
-            answer = query(user_input)
+            answer = query(user_input, dataset_name=args.dataset)
             print(f"Answer:\n{answer}\n")
             
         except KeyboardInterrupt:

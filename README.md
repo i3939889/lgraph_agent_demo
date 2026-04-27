@@ -33,13 +33,24 @@ pip install -r requirements.txt
 GEMINI_API_KEY="您的_GOOGLE_API_KEY"
 NVIDIA_API_KEY="您的_NVIDIA_API_KEY"
 NVIDIA_MODEL="meta/llama-3.1-8b-instruct"
+DATASET_NAME="dataset_a" # 預設資料集名稱
 ```
 
 ### 4. 資料準備
-專案中已提供 `data/` 目錄。您可以手動將 Markdown `.md` 檔案放入此目錄，或是執行我們提供的自動下載腳本來獲取 Paul Graham 的散文集：
+您可以手動將 Markdown `.md` 檔案放入對應的資料集子目錄中（例如 `data/my_custom_dataset/`），或是執行自動下載腳本來獲取內建支援的測試資料。
+
+目前 `src/setup_data.py` 自動下載支援的資料集列表：
+- **`paul_graham`** (或 `dataset_a`)：Paul Graham 散文集
+- **`natural_questions`**：Google Research Natural Questions 資料集
+
+產生資料時必須明確指定資料集名稱：
 
 ```bash
-python -m src.setup_data
+# 自動下載並解壓縮內建支援的資料集
+python -m src.setup_data --dataset natural_questions
+
+# 若輸入未內建支援的名稱，程式仍會建立好空的資料夾，後續請自行放入 .md 檔案：
+python -m src.setup_data --dataset my_custom_dataset
 ```
 
 ---
@@ -47,20 +58,24 @@ python -m src.setup_data
 ## 📖 使用指南
 
 ### 步驟一：建立本機向量索引庫
-在使用機器人對話之前，需要先將 `data/` 中的 Markdown 文字檔進行切塊 (Chunking) 與向量化 (Embedding)，這段過程的產物會自動儲存到 `./storage/` 資料夾中。
+在使用機器人對話之前，需要先將資料集目錄 (`data/{dataset_name}/`) 中的 Markdown 文字檔進行切塊 (Chunking) 與向量化 (Embedding)，產生的向量庫會自動儲存到對應的 `./storage/{dataset_name}/` 資料夾中。
 
 在專案根目錄執行：
 ```bash
-python -m src.ingest
+# 明確指定要建立索引的資料集名稱
+python -m src.ingest --dataset my_custom_dataset
 ```
 *(注意：若資料量龐大，建立過程中可能會遇到 Gemini 基礎免費額度的 Rate Limit，請耐心等候程式執行完畢。)*
 
 ### 步驟二：啟動終端對話程式
-看到 `./storage` 產生數個 JSON 檔案後，即可進入即時對答 MVP 測試階段。
+看到 `./storage/{dataset_name}/` 產生數個 JSON 檔案後，即可進入即時對答 MVP 測試階段。
 
 ```bash
+# 使用 .env 預設的資料集
 python src/main.py
-# 或是 python -m src.main
+
+# 或是指定特定的資料集名稱
+python src/main.py --dataset my_custom_dataset
 ```
 
 進入對話後，您可以：

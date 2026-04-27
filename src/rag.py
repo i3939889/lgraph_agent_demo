@@ -28,10 +28,14 @@ QA_PROMPT_TMPL = (
     "Answer: "
 )
 
-def get_query_engine():
+def get_query_engine(dataset_name: Optional[str] = None):
     """載入 index 並回傳防護好的檢索引擎"""
     setup_llamaindex()
-    storage_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage')
+    
+    if not dataset_name:
+        dataset_name = os.getenv("DATASET_NAME", "dataset_a")
+        
+    storage_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage', dataset_name)
     
     if not os.path.exists(storage_dir):
         raise FileNotFoundError(f"找不到向量庫 {storage_dir}，請先執行 src/ingest.py 建立。")
@@ -49,7 +53,7 @@ def get_query_engine():
     
     return query_engine
 
-def query(question: str, session_id: str = "session_default") -> str:
+def query(question: str, session_id: str = "session_default", dataset_name: Optional[str] = None) -> str:
     """執行檢索並回答使用者問題，具備嚴格例外處理與回報，並支援紀錄日誌"""
     start_time = time.time()
     
@@ -61,7 +65,7 @@ def query(question: str, session_id: str = "session_default") -> str:
     }
 
     try:
-        engine = get_query_engine()
+        engine = get_query_engine(dataset_name=dataset_name)
         # get_query_engine 會呼叫 setup_llamaindex，進而載入 .env
         llm_provider = os.getenv("LLM_PROVIDER", "nvidia").lower()
         if llm_provider == "vllm":
