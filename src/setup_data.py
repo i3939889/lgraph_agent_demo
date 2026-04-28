@@ -35,57 +35,55 @@ def setup_paul_graham(data_dir):
         except Exception as e:
             print(f"下載失敗: {e}")
 
-def setup_natural_questions(data_dir):
-    """下載 Natural Questions 資料集"""
-    zip_url = "https://github.com/google-research-datasets/natural-questions/archive/refs/heads/master.zip"
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        zip_path = os.path.join(tmp_dir, "nq.zip")
-        print(f"正在從 {zip_url} 下載 Natural Questions 資料...")
-        try:
-            urllib.request.urlretrieve(zip_url, zip_path)
-            print("下載完成，正在解壓縮...")
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(tmp_dir)
-            
-            src_dir = os.path.join(tmp_dir, "natural-questions-master")
-            if not os.path.exists(src_dir):
-                print("錯誤: 找不到 natural-questions-master 目錄。")
-                return
+def setup_natural_questions(data_dir, limit=20):
+    """下載 Natural Questions 資料集並轉換為 Markdown"""
+    print(f"正在透過 Hugging Face Datasets 獲取 Natural Questions 數據 (限制 {limit} 筆)...")
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("錯誤: 找不到 datasets 套件。請先執行 `pip install datasets`。")
+        return
 
-            # 複製所有檔案
-            for item in os.listdir(src_dir):
-                s = os.path.join(src_dir, item)
-                d = os.path.join(data_dir, item)
-                if os.path.isdir(s):
-                    shutil.copytree(s, d, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(s, d)
-            print(f"成功下載並解壓縮 Natural Questions 到 {data_dir}！")
+    try:
+        # 下載小部分的驗證集作為測試
+        dataset = load_dataset('natural_questions', split=f'train[:{limit}]', trust_remote_code=True)
+        
+        count = 0
+        for i, item in enumerate(dataset):
+            question = item.get('question', {}).get('text', 'Unknown Question')
             
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                print("404 錯誤，嘗試切換為 main 分支...")
-                try:
-                    zip_url = "https://github.com/google-research-datasets/natural-questions/archive/refs/heads/main.zip"
-                    urllib.request.urlretrieve(zip_url, zip_path)
-                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                        zip_ref.extractall(tmp_dir)
-                    src_dir = os.path.join(tmp_dir, "natural-questions-main")
-                    if os.path.exists(src_dir):
-                        for item in os.listdir(src_dir):
-                            s = os.path.join(src_dir, item)
-                            d = os.path.join(data_dir, item)
-                            if os.path.isdir(s):
-                                shutil.copytree(s, d, dirs_exist_ok=True)
-                            else:
-                                shutil.copy2(s, d)
-                        print(f"成功下載並解壓縮 Natural Questions 到 {data_dir}！")
-                except Exception as ex:
-                    print(f"嘗試 main 分支仍下載失敗: {ex}")
-            else:
-                print(f"下載失敗: {e}")
-        except Exception as e:
-            print(f"下載失敗: {e}")
+            # 取得文件內容 (從 HTML tokens 中提取文字)
+            document_tokens = item.get('document', {}).get('tokens', [])
+            is_html = item.get('document', {}).get('is_html', [])
+            
+            # 過濾掉 HTML 標籤，只保留文字內容
+            text_parts = []
+            for token, html_flag in zip(document_tokens, is_html):
+                if not html_flag:
+                    text_parts.append(token)
+            
+            context_text = " ".join(text_parts[:2000]) # 限制長度避免單一檔案過大
+            
+            # 取得答案 (如果有的話)
+            annotations = item.get('annotations', {})
+            short_answers = annotations.get('short_answers', [])
+            ans_str = "N/A"
+            if short_answers and len(short_answers) > 0:
+                # 這裡簡單取第一個短答案的 token 範圍 (簡化邏輯)
+                ans_str = "See context for details"
+
+            md_content = f"# Question: {question}\n\n**Potential Answer:** {ans_str}\n\n## Source Document Context\n\n{context_text}\n"
+            
+            file_path = os.path.join(data_dir, f"nq_sample_{i}.md")
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(md_content)
+            
+            count += 1
+
+        print(f"成功下載並轉換 {count} 筆 Natural Questions 資料到 {data_dir}！")
+            
+    except Exception as e:
+        print(f"處理 Natural Questions 時發生錯誤: {e}")
 
 def setup_trivia_qa(data_dir, limit):
     """下載並轉換 TriviaQA RC 資料集為 Markdown 格式"""
