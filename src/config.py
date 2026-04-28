@@ -5,6 +5,7 @@ from llama_index.core import Settings
 from llama_index.llms.nvidia import NVIDIA
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.embeddings.nvidia import NVIDIAEmbedding
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.core.node_parser import TokenTextSplitter
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def setup_llamaindex():
         # 設定 NVIDIA LLM
         Settings.llm = NVIDIA(model=nvidia_model, api_key=nvidia_api_key)
     # 設定 Embedding 模型
-    embed_provider = os.getenv("EMBED_PROVIDER", "nvidia").lower()
+    embed_provider = os.getenv("EMBED_PROVIDER", "google").lower()
     if embed_provider == "google" and gemini_api_key:
         Settings.embed_model = GoogleGenAIEmbedding(model_name="models/gemini-embedding-001", api_key=gemini_api_key)
     else:
