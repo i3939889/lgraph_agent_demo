@@ -1,9 +1,27 @@
 import os
+
+# ─── 必須在所有 HuggingFace 相關套件 import 之前設定 HF_HOME ───
+# datasets / huggingface_hub 在 import 時就會鎖定快取路徑，
+# 因此這段必須是整個模組最早執行的程式碼。
+_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+if os.path.exists(_env_path):
+    with open(_env_path, encoding='utf-8') as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _, _v = _line.partition('=')
+                # 去除引號，並只設定尚未被 OS 環境覆蓋的變數
+                os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
+_hf_home = os.environ.get("HF_HOME")
+if _hf_home:
+    os.makedirs(_hf_home, exist_ok=True)
+# ────────────────────────────────────────────────────────────────
+
 import urllib.request
 import zipfile
 import shutil
 import tempfile
-
 import argparse
 
 def setup_paul_graham(data_dir):
@@ -35,8 +53,13 @@ def setup_paul_graham(data_dir):
         except Exception as e:
             print(f"下載失敗: {e}")
 
-def setup_natural_questions(data_dir, limit=20):
-    """下載 Natural Questions 資料集並轉換為 Markdown"""
+def setup_natural_questions(data_dir, limit=200):
+    """下載 Natural Questions 資料集並轉換為 Markdown。
+
+    NQ 的 document.tokens 欄位結構為:
+        {'token': [...], 'is_html': [...], 'start_byte': [...], 'end_byte': [...]}
+    必須用 tokens['token'] 和 tokens['is_html'] 配對後過濾 HTML tag。
+    """
     print(f"正在透過 Hugging Face Datasets 獲取 Natural Questions 數據 (限制 {limit} 筆)...")
     try:
         from datasets import load_dataset
@@ -45,45 +68,59 @@ def setup_natural_questions(data_dir, limit=20):
         return
 
     try:
-        # 下載小部分的驗證集作為測試
-        dataset = load_dataset('natural_questions', split=f'train[:{limit}]', trust_remote_code=True)
-        
+        dataset = load_dataset('natural_questions', split=f'train[:{limit}]')
+
         count = 0
         for i, item in enumerate(dataset):
             question = item.get('question', {}).get('text', 'Unknown Question')
-            
-            # 取得文件內容 (從 HTML tokens 中提取文字)
-            document_tokens = item.get('document', {}).get('tokens', [])
-            is_html = item.get('document', {}).get('is_html', [])
-            
-            # 過濾掉 HTML 標籤，只保留文字內容
-            text_parts = []
-            for token, html_flag in zip(document_tokens, is_html):
-                if not html_flag:
-                    text_parts.append(token)
-            
-            context_text = " ".join(text_parts[:2000]) # 限制長度避免單一檔案過大
-            
-            # 取得答案 (如果有的話)
-            annotations = item.get('annotations', {})
-            short_answers = annotations.get('short_answers', [])
-            ans_str = "N/A"
-            if short_answers and len(short_answers) > 0:
-                # 這裡簡單取第一個短答案的 token 範圍 (簡化邏輯)
-                ans_str = "See context for details"
 
-            md_content = f"# Question: {question}\n\n**Potential Answer:** {ans_str}\n\n## Source Document Context\n\n{context_text}\n"
-            
+            doc = item.get('document', {})
+            title = doc.get('title', '')
+
+            # tokens 欄位是 dict: {'token': [...], 'is_html': [...], ...}
+            tokens_dict = doc.get('tokens', {})
+            token_list = tokens_dict.get('token', [])
+            is_html_list = tokens_dict.get('is_html', [])
+
+            # 過濾掉 HTML 標籤，只保留純文字 token
+            text_parts: list[str] = [
+                tok for tok, is_html in zip(token_list, is_html_list)
+                if not is_html
+            ]
+            context_text = " ".join(text_parts[:1500])  # 取前 1500 個 token，約 6000 字元
+
+            # 取得短答案
+            annotations = item.get('annotations', {})
+            short_answers_list = annotations.get('short_answers', [])
+            ans_str = "N/A"
+            # short_answers 是 list of dicts，每個 dict 含 'text' key (list of str)
+            if short_answers_list:
+                for sa_group in short_answers_list:
+                    texts = sa_group.get('text', [])
+                    if texts:
+                        ans_str = texts[0]
+                        break
+
+            md_content = (
+                f"# {title}\n\n"
+                f"## Question\n\n{question}\n\n"
+                f"**Answer:** {ans_str}\n\n"
+                f"## Wikipedia Context\n\n{context_text}\n"
+            )
+
             file_path = os.path.join(data_dir, f"nq_sample_{i}.md")
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
-            
+
             count += 1
+            if count % 20 == 0:
+                print(f"  已處理 {count}/{limit} 筆...")
 
         print(f"成功下載並轉換 {count} 筆 Natural Questions 資料到 {data_dir}！")
-            
+
     except Exception as e:
         print(f"處理 Natural Questions 時發生錯誤: {e}")
+
 
 def setup_trivia_qa(data_dir, limit):
     """下載並轉換 TriviaQA RC 資料集為 Markdown 格式"""
@@ -148,7 +185,7 @@ def setup_data():
     if dataset_name == "paul_graham" or dataset_name == "dataset_a":
         setup_paul_graham(data_dir)
     elif dataset_name == "natural_questions":
-        setup_natural_questions(data_dir)
+        setup_natural_questions(data_dir, limit)
     elif dataset_name == "trivia_qa":
         setup_trivia_qa(data_dir, limit)
     else:

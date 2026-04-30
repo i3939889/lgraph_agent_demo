@@ -15,6 +15,14 @@ def setup_llamaindex():
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     load_dotenv(dotenv_path=env_path)
     logger.info("Loaded .env file for LLM configuration.")
+
+    # 將 HF_HOME 寫入 os.environ，確保 HuggingFace 套件在 runtime 使用正確快取路徑
+    # 必須在任何 HF 模型初始化前設定，否則套件會鎖定預設的 C:\ 路徑
+    hf_home = os.getenv("HF_HOME")
+    if hf_home:
+        os.makedirs(hf_home, exist_ok=True)
+        os.environ["HF_HOME"] = hf_home
+        logger.info(f"HuggingFace 快取路徑已設定為: {hf_home}")
     
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     nvidia_api_key = os.getenv("NVIDIA_API_KEY")

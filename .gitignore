@@ -38,3 +38,4 @@ logs/
 
 # Others
 .DS_Store
+.cache/

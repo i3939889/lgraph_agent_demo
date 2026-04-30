@@ -45,7 +45,8 @@ def get_query_engine(dataset_name: Optional[str] = None):
     index = load_index_from_storage(storage_context)
     
     # 建立 query_engine
-    query_engine = index.as_query_engine(similarity_top_k=5)
+    # similarity_cutoff=0.3 避免門檻過高導致 source_nodes 永遠為空
+    query_engine = index.as_query_engine(similarity_top_k=5, similarity_cutoff=0.3)
     
     # 設定防幻覺 Prompt
     qa_prompt = PromptTemplate(QA_PROMPT_TMPL)
@@ -79,9 +80,15 @@ def query(question: str, session_id: str = "session_default", dataset_name: Opti
         elapsed = time.time() - start_time
         log_data["latency_seconds"] = round(elapsed, 4)
         
-        # 檢查檢索結果是否為空 (LlamaIndex如果找不到任何相似節點時 source_nodes 會是空的)
+        # 檢查 1：無任何檢索結果
         if not response.source_nodes:
-            raise ValueError("Empty retrieval results")
+            raise ValueError("Empty retrieval results — no nodes returned")
+
+        # 檢查 2：最高分節點低於閾值，表示資料庫沒有覆蓋此主題
+        # 根據 log 分析，score < 0.65 的節點幾乎都是不相關的雜訊
+        top_score = max(n.score for n in response.source_nodes if n.score is not None)
+        if top_score < 0.65:
+            raise ValueError(f"Retrieval confidence too low (top_score={top_score:.4f} < 0.65) — topic not in knowledge base")
             
         answer_str = str(response)
         log_data["answer"] = answer_str
