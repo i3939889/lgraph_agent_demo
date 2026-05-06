@@ -8,6 +8,9 @@ from llama_index.embeddings.nvidia import NVIDIAEmbedding
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.core.node_parser import TokenTextSplitter
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
+
 logger = logging.getLogger(__name__)
 
 def setup_llamaindex():
@@ -69,3 +72,43 @@ def setup_llamaindex():
         Settings.embed_model = NVIDIAEmbedding(model="nvidia/nv-embedqa-e5-v5", api_key=nvidia_api_key)
     # 大幅調低 chunk_size 到 300，以確保加上 Metadata 且 Tokenizer 計算落差後，仍能塞進 NVIDIA 的 512 限制
     Settings.node_parser = TokenTextSplitter(chunk_size=300, chunk_overlap=30)
+
+def get_langchain_llm():
+    """取得 LangChain 相容的 LLM 實例，供 LangGraph 節點使用"""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    load_dotenv(dotenv_path=env_path)
+    
+    llm_provider = os.getenv("LLM_PROVIDER", "nvidia").lower()
+    
+    if llm_provider == "vllm":
+        vllm_api_base = os.getenv("VLLM_API_BASE", "http://localhost:8000/v1")
+        vllm_api_key = os.getenv("VLLM_API_KEY", "empty").strip()
+        vllm_model = os.getenv("VLLM_MODEL", "gemma-4b")
+        return ChatOpenAI(
+            model=vllm_model,
+            api_key=vllm_api_key if vllm_api_key != "empty" else "empty",
+            base_url=vllm_api_base,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+        )
+    elif llm_provider == "nvidia":
+        nvidia_api_key = os.getenv("NVIDIA_API_KEY")
+        nvidia_model = os.getenv("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
+        return ChatOpenAI(
+            model=nvidia_model,
+            api_key=nvidia_api_key,
+            base_url="https://integrate.api.nvidia.com/v1",
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+        )
+    else:
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY not found.")
+        return ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash",
+            google_api_key=gemini_api_key,
+            max_retries=2
+        )

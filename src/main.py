@@ -8,10 +8,11 @@ logging.basicConfig(level=logging.INFO)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-from src.rag import query
+from langchain_core.messages import HumanMessage
+from src.graph import build_graph
 
 def main():
-    parser = argparse.ArgumentParser(description="LGraph Agent MVP")
+    parser = argparse.ArgumentParser(description="LGraph Agent Phase 2")
     parser.add_argument("--dataset", type=str, default=None, help="指定資料集名稱 (覆蓋 .env 中的 DATASET_NAME)")
     args = parser.parse_args()
     
@@ -19,16 +20,19 @@ def main():
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     load_dotenv(dotenv_path=env_path)
     
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("❌ 未能讀取 GEMINI_API_KEY，請確認根目錄 .env 設定")
-        sys.exit(1)
+    # 設定 dataset (讓 retriever 能抓取)
+    active_dataset = args.dataset if args.dataset else os.getenv("DATASET_NAME", "default_dataset")
+    os.environ["DATASET_NAME"] = active_dataset
         
-    print("Starting LGraph Agent MVP...")
+    print("Starting LGraph Agent Phase 2 (Memory)...")
     print("Type 'exit' or 'quit' to exit.")
     print("-" * 50)
     
-    active_dataset = args.dataset if args.dataset else os.getenv("DATASET_NAME", "default_dataset")
+    # 建立 LangGraph
+    app = build_graph()
+    
+    # 固定 thread_id 達成單一 Session 記憶
+    config = {"configurable": {"thread_id": "session_default"}}
     
     while True:
         try:
@@ -40,9 +44,15 @@ def main():
                 break
                 
             print("Thinking...\n")
-            # 呼叫 MVP 的 query 函式
-            answer = query(user_input, dataset_name=args.dataset)
-            print(f"Answer:\n{answer}\n")
+            
+            # 使用 Graph 進行對話推論
+            initial_state = {"messages": [HumanMessage(content=user_input)]}
+            
+            for event in app.stream(initial_state, config):
+                for node_name, node_state in event.items():
+                    if node_name == "generate":
+                        answer = node_state["messages"][-1].content
+                        print(f"Answer:\n{answer}\n")
             
         except KeyboardInterrupt:
             print("\nGoodbye!")

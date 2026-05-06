@@ -1,0 +1,49 @@
+# Phase 2 (Memory): Stateful RAG 實作總結
+
+我們已經完成了第二階段的實作，將 LangGraph 成功整合進系統中，讓聊天機器人具備了對話記憶 (Stateful) 的能力。
+
+## 變更摘要
+
+1. **依賴套件更新 (`requirements.txt`)**
+   - 新增了 `langchain-google-genai` 與 `langchain-openai` 以支援 LangGraph 的對話模型。
+
+2. **引入 LangChain 模型 (`src/config.py`)**
+   - 新增了 `get_langchain_llm()` 函式，會依據 `.env` 的設定 (`LLM_PROVIDER`) 回傳對應的 LangChain ChatModel（支援 Gemini、vLLM 與 NVIDIA）。
+
+3. **狀態定義 (`src/state.py`)**
+   - 定義了 `AgentState` TypedDict。
+   - 使用 `add_messages` 來管理並自動 Append `messages` 陣列。
+   - 加入了 `context` 以傳遞檢索結果。
+
+4. **重構 RAG 與建立節點 (`src/rag.py` & `src/nodes.py`)**
+   - 在 `rag.py` 中新增了 `get_retriever()`，將純粹的向量檢索功能分離出來。
+   - 建立了 `retrieve_node`：接收使用者的問題，呼叫 Retriever 取得參考資料，並將其整理至 `context` 狀態中。
+   - 建立了 `generate_node`：讀取 `messages` 歷史紀錄，並將檢索到的 `context` 加入到 System Prompt 中，再呼叫 `get_langchain_llm()` 生成回答。
+
+5. **建構圖與記憶體 (`src/graph.py`)**
+   - 建立了 `StateGraph`，將流程定義為 `START -> retrieve -> generate -> END`。
+   - 加入 `MemorySaver` 作為 Checkpointer，確保同一個 `thread_id` 內的對話歷史得以保存。
+
+6. **更新 CLI 介面 (`src/main.py`)**
+   - 將主程式改為呼叫編譯好的 LangGraph `app.stream()`。
+   - 設定固定的 `thread_id: "session_default"`，確保在該次執行中維持單一 Session 記憶。
+
+## 驗證計畫
+
+您可以透過以下方式手動驗證修改：
+
+1. **啟動主程式**：
+   ```bash
+   python src/main.py
+   ```
+2. **測試記憶功能**：
+   - 先問一個問題（例如：「什麼是 x？」）。
+   - 接著問與上一題相關但缺乏主詞的問題（例如：「那它有什麼優點？」）。
+   - 觀察機器人是否能理解「它」指的是上一題的主題。
+
+3. **測試 RAG 限制**：
+   - 詢問一個絕對不在文件內的問題（例如：「2024巴黎奧運的籃球金牌是誰？」）。
+   - 確認機器人是否回覆「I don't know based on the provided files.」。
+
+> [!TIP]
+> 所有的修改都已經自動為第三階段（意圖偵測與記憶體修剪）預留了必要的 State 欄位 (`current_topic`, `is_topic_changed`)。

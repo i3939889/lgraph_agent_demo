@@ -54,6 +54,26 @@ def get_query_engine(dataset_name: Optional[str] = None):
     
     return query_engine
 
+def get_retriever(dataset_name: Optional[str] = None):
+    """回傳純 LlamaIndex Retriever 供 LangGraph 節點使用"""
+    setup_llamaindex()
+    
+    if not dataset_name:
+        dataset_name = os.getenv("DATASET_NAME", "dataset_a")
+        
+    storage_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage', dataset_name)
+    
+    if not os.path.exists(storage_dir):
+        raise FileNotFoundError(f"找不到向量庫 {storage_dir}，請先執行 src/ingest.py 建立。")
+        
+    logger.info("正在讀取本機向量庫 (Retriever)...")
+    storage_context = StorageContext.from_defaults(persist_dir=storage_dir)
+    index = load_index_from_storage(storage_context)
+    
+    # 建立 retriever
+    retriever = index.as_retriever(similarity_top_k=5, similarity_cutoff=0.3)
+    return retriever
+
 def query(question: str, session_id: str = "session_default", dataset_name: Optional[str] = None) -> str:
     """執行檢索並回答使用者問題，具備嚴格例外處理與回報，並支援紀錄日誌"""
     start_time = time.time()
